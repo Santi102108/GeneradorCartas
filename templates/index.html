@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Cartas</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="contenedor">
+
+    <h1>Generador de Cartas</h1>
+
+    {% if mensaje %}
+        <div class="mensaje">
+            {{ mensaje }}
+        </div>
+    {% endif %}
+    {% if word %}
+<br>
+
+<a href="/descargar/word">
+    <button type="button">
+        Descargar Word
+    </button>
+</a>
+
+<br><br>
+
+<a href="/descargar/pdf">
+    <button type="button">
+        Descargar PDF
+    </button>
+</a>
+
+{% endif %}
+
+    <form method="POST">
+
+        <label>Nombre</label>
+        <input
+            type="text"
+            name="nombre"
+            value="{{ datos.nombre }}"
+            required
+        >
+
+        <label>Cédula</label>
+        <input
+            type="text"
+            name="cedula"
+            value="{{ datos.cedula }}"
+            required
+        >
+
+        <label>Valor</label>
+        <input
+            type="text"
+            name="valor"
+            value="{{ datos.valor }}"
+            required
+        >
+
+        <label>Fecha máxima</label>
+        <input
+            type="text"
+            name="fecha_maxima"
+            placeholder="dd/mm/aa"
+            value="{{ datos.fecha_maxima }}"
+            required
+        >
+
+        <label>Fecha expedición</label>
+        <input
+            type="text"
+            name="fecha_expedicion"
+            placeholder="dd/mm/aa"
+            value="{{ datos.fecha_expedicion }}"
+            required
+        >
+
+        <button type="submit">
+            Generar Carta
+        </button>
+
+    </form>
+
+</div>
+
+</body>
+</html>
