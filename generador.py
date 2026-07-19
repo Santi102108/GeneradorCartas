@@ -48,7 +48,7 @@ def convertir_docx_a_pdf_cloudconvert(ruta_docx, ruta_pdf):
 
 def generar_carta_cesantias(datos_formulario):
     base_dir = Path(__file__).resolve().parent
-    ruta_plantilla = base_dir / "plantillas" / "Carta retiro cesantias.docx"
+    ruta_plantilla = base_dir / "plantilla.docx"
 
     nombre_base = f"Carta_Retiro_{datos_formulario.get('cedula', 'temporal')}"
     ruta_docx_salida = str(base_dir / f"{nombre_base}.docx")
