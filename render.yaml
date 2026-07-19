@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: generador-cartas
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn web_app:app
+    name: cesantias-express-app
+    env: python
+    buildCommand: pip install -r requisitos.txt
+    startCommand: gunicorn aplicacion:app
