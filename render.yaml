@@ -1,6 +1,0 @@
-services:
-  - type: web
-    name: cesantias-express-app
-    env: python
-    buildCommand: pip install -r requisitos.txt
-    startCommand: gunicorn aplicacion:app
