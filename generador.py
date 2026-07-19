@@ -1,55 +1,73 @@
+import os
 from pathlib import Path
 from docx import Document
-from docx2pdf import convert
+import cloudconvert
 
 from utilidades import convertir_numero_a_palabras, formatear_fecha_larga
 
+API_KEY = os.environ.get("CLOUDCONVERT_API_KEY")
+if API_KEY:
+    cloudconvert.configure(api_key=API_KEY)
 
-def reemplazar_marcadores(doc, datos: dict) -> None:
-    marcadores = {
-        "{{NOMBRE}}": datos.get("nombre", ""),
-        "{{CEDULA}}": datos.get("cedula", ""),
-        "{{VALOR}}": datos.get("valor", ""),
-        "{{VALOR_LETRAS}}": convertir_numero_a_palabras(datos.get("valor", "")),
-        "{{FECHA_MAXIMA}}": datos.get("fecha_maxima", ""),
-        "{{FECHA_EXPEDICION}}": formatear_fecha_larga(datos.get("fecha_expedicion", "")),
-    }
+def convertir_docx_a_pdf_cloudconvert(ruta_docx, ruta_pdf):
+    if not API_KEY:
+        raise ValueError("La variable CLOUDCONVERT_API_KEY no está configurada.")
 
-    def reemplazar_en_parrafo(parrafo):
-        for key, value in marcadores.items():
-            if key in parrafo.text:
-                for run in parrafo.runs:
-                    run.text = run.text.replace(key, value)
+    job = cloudconvert.Job.create(payload={
+        "tasks": {
+            "importar-docx": {"operation": "import/upload"},
+            "convertir-a-pdf": {
+                "operation": "convert",
+                "input": "importar-docx",
+                "output_format": "pdf",
+                "engine": "office"
+            },
+            "exportar-pdf": {"operation": "export/url", "input": "convertir-a-pdf"}
+        }
+    })
 
-    for parrafo in doc.paragraphs:
-        reemplazar_en_parrafo(parrafo)
+    upload_task = None
+    for task in job["tasks"]:
+        if task["name"] == "importar-docx":
+            upload_task = task
 
-    for tabla in doc.tables:
-        for fila in tabla.rows:
-            for celda in fila.cells:
-                for parrafo in celda.paragraphs:
-                    reemplazar_en_parrafo(parrafo)
+    cloudconvert.Task.upload(file_name=ruta_docx, task=upload_task)
+    completed_job = cloudconvert.Job.wait(id=job["id"])
 
+    export_task = None
+    for task in completed_job["tasks"]:
+        if task["name"] == "exportar-pdf":
+            export_task = task
 
-def generar_carta(datos: dict, plantilla_path: Path, carpeta_destino: Path) -> tuple[str, str]:
-    plantilla_path = Path(plantilla_path)
-    carpeta_destino = Path(carpeta_destino)
-    carpeta_destino.mkdir(parents=True, exist_ok=True)
+    if export_task["status"] == "finished" and export_task["result"]["files"]:
+        archivo_salida = export_task["result"]["files"][0]
+        cloudconvert.download(url=archivo_salida["url"], local_path=ruta_pdf)
+        return ruta_pdf
+    else:
+        raise Exception("La conversión en CloudConvert falló.")
 
-    nombre_cliente = datos.get("nombre", "Cliente").strip()
-    carpeta_cliente = carpeta_destino / nombre_cliente
-    carpeta_cliente.mkdir(parents=True, exist_ok=True)
+def generar_carta_cesantias(datos_formulario):
+    base_dir = Path(__file__).resolve().parent
+    ruta_plantilla = base_dir / "plantillas" / "Carta retiro cesantias.docx"
 
-    doc = Document(plantilla_path)
-    reemplazar_marcadores(doc, datos)
+    nombre_base = f"Carta_Retiro_{datos_formulario.get('cedula', 'temporal')}"
+    ruta_docx_salida = str(base_dir / f"{nombre_base}.docx")
+    ruta_pdf_salida = str(base_dir / f"{nombre_base}.pdf")
 
-    nombre_base = nombre_cliente.replace("/", "-").replace("\\", "-")
-    docx_path = carpeta_cliente / f"{nombre_base}.docx"
-    pdf_path = carpeta_cliente / f"{nombre_base}.pdf"
+    doc = Document(ruta_plantilla)
 
-    doc.save(docx_path)
+    # Aquí se procesan los datos que ingresas en el formulario
+    for p in doc.paragraphs:
+        if "{{nombre}}" in p.text:
+            p.text = p.text.replace("{{nombre}}", datos_formulario.get('nombre', ''))
+        if "{{cedula}}" in p.text:
+            p.text = p.text.replace("{{cedula}}", datos_formulario.get('cedula', ''))
+
+    doc.save(ruta_docx_salida)
+
     try:
-        convert(str(docx_path), str(pdf_path))
-    except Exception:
-        pdf_path.write_bytes(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n4 0 obj\n<< /Length 44 >>\nstream\nBT /F1 18 Tf 72 72 Td (Documento generado) Tj ET\nendstream\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000010 00000 n \n0000000062 00000 n \n0000000119 00000 n \n0000000206 00000 n \n0000000300 00000 n \ntrailer\n<< /Root 1 0 R /Size 6 >>\nstartxref\n0\n%%EOF")
-    return str(docx_path), str(pdf_path)
+        convertir_docx_a_pdf_cloudconvert(ruta_docx_salida, ruta_pdf_salida)
+        return ruta_docx_salida, ruta_pdf_salida
+    except Exception as e:
+        print(f"Error: {e}")
+        return ruta_docx_salida, None
