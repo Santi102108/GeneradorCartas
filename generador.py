@@ -13,6 +13,7 @@ def convertir_docx_a_pdf_cloudconvert(ruta_docx, ruta_pdf):
     if not API_KEY:
         raise ValueError("La variable CLOUDCONVERT_API_KEY no está configurada en Render.")
 
+    # Estructura optimizada y robusta para la conversión de CloudConvert
     job = cloudconvert.Job.create(payload={
         "tasks": {
             "importar-docx": {"operation": "import/upload"},
@@ -55,9 +56,12 @@ def generar_carta_cesantias(datos_formulario):
     # Preparar los datos ingresados y limpiar textos
     nombre = datos_formulario.get('nombre', '')
     cedula = datos_formulario.get('cedula', '')
-    valor_num = datos_formulario.get('valor', '0')
+    valor_num = datos_formulario.get('valor', '0').strip() # Limpiamos espacios
     fecha_maxima = datos_formulario.get('fecha_maxima', '')
     fecha_expedicion = datos_formulario.get('fecha_expedicion', '')
+
+    # CORRECCIÓN AQUÍ: Aseguramos que el valor numérico nunca lleve M/CTE al final
+    valor_num = valor_num.replace(" M/CTE", "").replace(" m/cte", "").strip()
 
     # Convertir el valor numérico a letras de forma automática si es un número válido
     try:
@@ -67,12 +71,12 @@ def generar_carta_cesantias(datos_formulario):
     except Exception:
         valor_letras = ""
 
-    # Diccionario con todos los reemplazos (en Mayúsculas como en tu Word)
+    # Diccionario con todos los reemplazos estrictos
     reemplazos = {
         "{{NOMBRE}}": nombre,
         "{{CEDULA}}": cedula,
-        "{{VALOR}}": valor_num,
-        "{{VALOR_LETRAS}}": valor_letras,
+        "{{VALOR}}": valor_num,  # Va puramente el número aquí
+        "{{VALOR_LETRAS}}": valor_letras, # Va el texto con el M/CTE aquí
         "{{FECHA_MAXIMA}}": fecha_maxima,
         "{{FECHA_EXPEDICION}}": fecha_expedicion
     }
@@ -98,5 +102,6 @@ def generar_carta_cesantias(datos_formulario):
         convertir_docx_a_pdf_cloudconvert(ruta_docx_salida, ruta_pdf_salida)
         return ruta_docx_salida, ruta_pdf_salida
     except Exception as e:
-        print(f"Error convirtiendo a PDF: {e}")
+        # Esto imprimirá el error exacto en los logs de Render si la API falla
+        print(f"--- ERROR CRÍTICO CONVERSIÓN PDF ---: {e}")
         return ruta_docx_salida, None
