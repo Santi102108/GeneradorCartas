@@ -1,107 +1,40 @@
 import os
-from pathlib import Path
-from docx import Document
-import cloudconvert
+from flask import Flask, render_template, request, send_file, after_this_request
+from generador import generar_carta_cesantias
 
-from utilidades import convertir_numero_a_palabras, formatear_fecha_larga
+app = Flask(__name__)
 
-API_KEY = os.environ.get("CLOUDCONVERT_API_KEY")
-if API_KEY:
-    cloudconvert.configure(api_key=API_KEY)
+@app.route("/")
+def index():
+    return render_template("index.html", datos={})
 
-def convertir_docx_a_pdf_cloudconvert(ruta_docx, ruta_pdf):
-    if not API_KEY:
-        raise ValueError("La variable CLOUDCONVERT_API_KEY no está configurada en Render.")
+@app.route("/generar", methods=["POST"])
+def generar():
+    datos = request.form.to_dict()
+    
+    # Extraemos el nombre que la persona escribió en el formulario
+    nombre_usuario = datos.get('nombre', 'Empleado').strip().replace(" ", "_")
+    
+    ruta_docx, ruta_pdf = generar_carta_cesantias(datos)
 
-    # Estructura optimizada y robusta para la conversión de CloudConvert
-    job = cloudconvert.Job.create(payload={
-        "tasks": {
-            "importar-docx": {"operation": "import/upload"},
-            "convertir-a-pdf": {
-                "operation": "convert",
-                "input": "importar-docx",
-                "output_format": "pdf",
-                "engine": "office"
-            },
-            "exportar-pdf": {"operation": "export/url", "input": "convertir-a-pdf"}
-        }
-    })
+    @after_this_request
+    def eliminar_temporales(response):
+        try:
+            if ruta_docx and os.path.exists(ruta_docx):
+                os.remove(ruta_docx)
+            if ruta_pdf and os.path.exists(ruta_pdf):
+                os.remove(ruta_pdf)
+        except Exception as e:
+            print(f"Error limpiando archivos: {e}")
+        return response
 
-    upload_task = filter(lambda task: task['operation'] == 'import/upload', job['tasks'])
-    upload_task = list(upload_task)[0]
+    # Asignamos los nombres personalizados para las descargas
+    nombre_archivo_pdf = f"Carta_Retiro_Cesantias_{nombre_usuario}.pdf"
+    nombre_archivo_docx = f"Carta_Retiro_Cesantias_{nombre_usuario}.docx"
 
-    cloudconvert.Task.upload(file_name=ruta_docx, task=upload_task)
-    completed_job = cloudconvert.Job.wait(id=job["id"])
-
-    export_task = filter(lambda task: task['operation'] == 'export/url', completed_job['tasks'])
-    export_task = list(export_task)[0]
-
-    if export_task["status"] == "finished" and export_task["result"]["files"]:
-        archivo_salida = export_task["result"]["files"][0]
-        cloudconvert.download(url=archivo_salida["url"], filename=ruta_pdf)
-        return ruta_pdf
+    # Intentamos enviar el PDF si existe
+    if ruta_pdf and os.path.exists(ruta_pdf):
+        return send_file(ruta_pdf, as_attachment=True, download_name=nombre_archivo_pdf)
     else:
-        raise Exception("La conversión en CloudConvert falló en los servidores externos.")
-
-def generar_carta_cesantias(datos_formulario):
-    base_dir = Path(__file__).resolve().parent
-    ruta_plantilla = base_dir / "plantilla.docx"
-
-    nombre_base = f"Carta_Retiro_{datos_formulario.get('cedula', 'temporal')}"
-    ruta_docx_salida = str(base_dir / f"{nombre_base}.docx")
-    ruta_pdf_salida = str(base_dir / f"{nombre_base}.pdf")
-
-    doc = Document(ruta_plantilla)
-
-    # Preparar los datos ingresados y limpiar textos
-    nombre = datos_formulario.get('nombre', '')
-    cedula = datos_formulario.get('cedula', '')
-    valor_num = datos_formulario.get('valor', '0').strip() # Limpiamos espacios
-    fecha_maxima = datos_formulario.get('fecha_maxima', '')
-    fecha_expedicion = datos_formulario.get('fecha_expedicion', '')
-
-    # Aseguramos que el valor numérico no lleve ningún texto extraño pegado al final
-    valor_num = valor_num.replace(" M/CTE", "").replace(" m/cte", "").strip()
-
-    # Convertir el valor numérico a letras de forma automática si es un número válido
-    try:
-        # Quitamos puntos o comas que el usuario haya puesto para que la función no falle
-        valor_limpio = int(valor_num.replace('.', '').replace(',', '').strip())
-        valor_letras = convertir_numero_a_palabras(valor_limpio).upper() + " PESOS M/CTE"
-    except Exception:
-        valor_letras = ""
-
-    # Diccionario con todos los reemplazos estrictos
-    reemplazos = {
-        "{{NOMBRE}}": nombre,
-        "{{CEDULA}}": cedula,
-        "{{VALOR}}": valor_num,  # Va puramente el número aquí
-        "{{VALOR_LETRAS}}": valor_letras, # Va el texto con el M/CTE aquí
-        "{{FECHA_MAXIMA}}": fecha_maxima,
-        "{{FECHA_EXPEDICION}}": fecha_expedicion
-    }
-
-    # 1. Reemplazar datos en los párrafos normales del documento
-    for p in doc.paragraphs:
-        for clave, valor in reemplazos.items():
-            if clave in p.text:
-                p.text = p.text.replace(clave, valor)
-
-    # 2. Reemplazar datos dentro de las TABLAS
-    for tabla in doc.tables:
-        for fila in tabla.rows:
-            for celda in fila.cells:
-                for p in celda.paragraphs:
-                    for clave, valor in reemplazos.items():
-                        if clave in p.text:
-                            p.text = p.text.replace(clave, valor)
-
-    doc.save(ruta_docx_salida)
-
-    try:
-        convertir_docx_a_pdf_cloudconvert(ruta_docx_salida, ruta_pdf_salida)
-        return ruta_docx_salida, ruta_pdf_salida
-    except Exception as e:
-        # Esto te mostrará el error real en los "Logs" de Render si vuelve a fallar
-        print(f"--- ERROR CRÍTICO CONVERSIÓN PDF ---: {e}")
-        return ruta_docx_salida, None
+        # Si aún no descarga en PDF, te bajará el Word limpio con el formato correcto
+        return send_file(ruta_docx, as_attachment=True, download_name=nombre_archivo_docx)
