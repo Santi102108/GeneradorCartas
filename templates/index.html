@@ -19,32 +19,33 @@
             {{ mensaje }}
         </div>
     {% endif %}
+    
     {% if word %}
-<br>
+    <br>
 
-<a href="/descargar/word">
-    <button type="button">
-        Descargar Word
-    </button>
-</a>
+    <a href="/descargar/word">
+        <button type="button">
+            Descargar Word
+        </button>
+    </a>
 
-<br><br>
+    <br><br>
 
-<a href="/descargar/pdf">
-    <button type="button">
-        Descargar PDF
-    </button>
-</a>
+    <a href="/descargar/pdf">
+        <button type="button">
+            Descargar PDF
+        </button>
+    </a>
+    {% endif %}
 
-{% endif %}
-
-    <form method="POST">
+    <!-- Se añade action="/generar" para solucionar el error Method Not Allowed -->
+    <form action="/generar" method="POST">
 
         <label>Nombre</label>
         <input
             type="text"
             name="nombre"
-            value="{{ datos.nombre }}"
+            value="{{ datos.get('nombre', '') }}"
             required
         >
 
@@ -52,7 +53,7 @@
         <input
             type="text"
             name="cedula"
-            value="{{ datos.cedula }}"
+            value="{{ datos.get('cedula', '') }}"
             required
         >
 
@@ -60,7 +61,7 @@
         <input
             type="text"
             name="valor"
-            value="{{ datos.valor }}"
+            value="{{ datos.get('valor', '') }}"
             required
         >
 
@@ -69,7 +70,7 @@
             type="text"
             name="fecha_maxima"
             placeholder="dd/mm/aa"
-            value="{{ datos.fecha_maxima }}"
+            value="{{ datos.get('fecha_maxima', '') }}"
             required
         >
 
@@ -78,7 +79,7 @@
             type="text"
             name="fecha_expedicion"
             placeholder="dd/mm/aa"
-            value="{{ datos.fecha_expedicion }}"
+            value="{{ datos.get('fecha_expedicion', '') }}"
             required
         >
 
