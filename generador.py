@@ -43,8 +43,9 @@ def convertir_docx_a_pdf_cloudconvert(ruta_docx, ruta_pdf):
 
     if export_task["status"] == "finished" and export_task["result"]["files"]:
         archivo_salida = export_task["result"]["files"][0]
-        # Descargamos el archivo PDF generado
-        cloudconvert.download(url=archivo_salida["url"], local_path=ruta_pdf)
+        
+        # CORRECCIÓN AQUÍ: Se cambia 'local_path' por 'filename' para cumplir con la nueva versión del SDK
+        cloudconvert.download(url=archivo_salida["url"], filename=ruta_pdf)
         return ruta_pdf
     else:
         raise Exception("La conversión en CloudConvert falló en los servidores externos.")
@@ -73,5 +74,5 @@ def generar_carta_cesantias(datos_formulario):
         return ruta_docx_salida, ruta_pdf_salida
     except Exception as e:
         print(f"Error convirtiendo a PDF: {e}")
-        # Si falla por API o credenciales, devuelve el Word para no romper la app
+        # Si falla por algún motivo externo, devuelve el Word para no romper la app
         return ruta_docx_salida, None
