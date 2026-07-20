@@ -6,12 +6,16 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    # Se corrige pasando datos={} para que index.html cargue sin errores la primera vez
     return render_template("index.html", datos={})
 
 @app.route("/generar", methods=["POST"])
 def generar():
     datos = request.form.to_dict()
+    
+    # Extraemos el nombre que la persona escribió en el formulario
+    # Si por alguna razón está vacío, usamos "Empleado" por defecto
+    nombre_usuario = datos.get('nombre', 'Empleado').strip().replace(" ", "_")
+    
     ruta_docx, ruta_pdf = generar_carta_cesantias(datos)
 
     @after_this_request
@@ -25,7 +29,13 @@ def generar():
             print(f"Error limpiando archivos: {e}")
         return response
 
+    # Asignamos los nombres personalizados para las descargas
+    nombre_archivo_pdf = f"Carta_Retiro_Cesantias_{nombre_usuario}.pdf"
+    nombre_archivo_docx = f"Carta_Retiro_Cesantias_{nombre_usuario}.docx"
+
+    # Intentamos enviar el PDF si existe
     if ruta_pdf and os.path.exists(ruta_pdf):
-        return send_file(ruta_pdf, as_attachment=True, download_name="Carta_Retiro_Cesantias.pdf")
+        return send_file(ruta_pdf, as_attachment=True, download_name=nombre_archivo_pdf)
     else:
-        return send_file(ruta_docx, as_attachment=True, download_name="Carta_Retiro_Cesantias.docx")
+        # Si aún no descarga en PDF, te bajará el Word pero con el nombre correcto de la persona
+        return send_file(ruta_docx, as_attachment=True, download_name=nombre_archivo_docx)
