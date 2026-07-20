@@ -6,7 +6,8 @@ app = Flask(__name__)
 
 @app.route("/")
 def index():
-    return render_template("index.html") # O como se llame tu archivo del formulario
+    # Se corrige pasando datos={} para que index.html cargue sin errores la primera vez
+    return render_template("index.html", datos={})
 
 @app.route("/generar", methods=["POST"])
 def generar():
