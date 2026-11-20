@@ -1,0 +1,26 @@
+name: Verificar Docker LibreOffice
+on:
+  push:
+    branches: ["feature/pdf-local-*"]
+  pull_request:
+    branches: [main]
+jobs:
+  pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir contenedor
+        run: docker build -t cartapro:ci .
+      - name: Iniciar contenedor
+        run: docker run -d --rm --name cartapro -p 10000:10000 cartapro:ci
+      - name: Probar servicio y cinco cartas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils
+          python scripts/smoke_local.py
+      - name: Logs
+        if: failure()
+        run: docker logs cartapro
+      - name: Detener
+        if: always()
+        run: docker stop cartapro
