@@ -30,9 +30,18 @@ def validar_datos(datos):
         raise ValueError("La cédula debe contener cifras válidas.")
     importe = normalizar_valor(limpio["valor"])
     limpio["valor"] = f"{importe:,}".replace(",", ".")
+    from datetime import datetime
     for campo in ("fecha_maxima", "fecha_expedicion"):
-        from utilidades import formatear_fecha_larga
-        formatear_fecha_larga(limpio[campo])
+        fecha = limpio[campo]
+        for formato in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
+            try:
+                parsed = datetime.strptime(fecha, formato)
+                limpio[campo] = parsed.strftime("%d/%m/%Y")
+                break
+            except ValueError:
+                continue
+        else:
+            raise ValueError(f"Fecha inválida en {campo.replace('_', ' ')}.")
     return limpio
 
 
