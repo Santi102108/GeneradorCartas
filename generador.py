@@ -26,7 +26,7 @@ def validar_datos(datos):
     for campo in ("nombre", "cedula"):
         if len(limpio[campo]) > 150:
             raise ValueError(f"El campo {campo} es demasiado largo.")
-    if not re.fullmatch(r"[0-9.\\- ]{5,25}", limpio["cedula"]):
+    if not re.fullmatch(r"[0-9.\- ]{5,25}", limpio["cedula"]):
         raise ValueError("La cédula debe contener cifras válidas.")
     importe = normalizar_valor(limpio["valor"])
     limpio["valor"] = f"{importe:,}".replace(",", ".")
@@ -45,7 +45,7 @@ def _reemplazar_en_parrafo(parrafo, reemplazos):
     if "{{" not in texto:
         return
     # Eliminar PESOS redundante solo junto al marcador monetario.
-    patron = re.compile(r"{{VALOR_LETRAS}}(?:[ \\t]+PESOS)?|" +
+    patron = re.compile(r"{{VALOR_LETRAS}}(?:[ \t]+PESOS)?|" +
                         "|".join(re.escape(x) for x in reemplazos if x != "{{VALOR_LETRAS}}"),
                         re.IGNORECASE)
     coincidencias = list(patron.finditer(texto))
@@ -101,7 +101,7 @@ def completar_plantilla(datos, salida_docx, plantilla=PLANTILLA):
     for contenedor in contenedores:
         for parrafo in _todos_los_parrafos(contenedor):
             _reemplazar_en_parrafo(parrafo, reemplazos)
-    texto = "\\n".join(p.text for c in contenedores for p in _todos_los_parrafos(c))
+    texto = "\n".join(p.text for c in contenedores for p in _todos_los_parrafos(c))
     for marcador in reemplazos:
         if marcador in texto:
             raise ValueError(f"La plantilla contiene un campo pendiente: {marcador}")
