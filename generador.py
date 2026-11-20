@@ -45,9 +45,11 @@ def _reemplazar_en_parrafo(parrafo, reemplazos):
     if "{{" not in texto:
         return
     # Eliminar PESOS redundante solo junto al marcador monetario.
-    patron = re.compile(r"{{VALOR_LETRAS}}(?:[ \t]+PESOS)?|" +
-                        "|".join(re.escape(x) for x in reemplazos if x != "{{VALOR_LETRAS}}"),
-                        re.IGNORECASE)
+    patrones = [r"{{VALOR_LETRAS}}(?:[ \t]+PESOS)?"] if "{{VALOR_LETRAS}}" in reemplazos else []
+    patrones.extend(re.escape(x) for x in reemplazos if x != "{{VALOR_LETRAS}}")
+    if not patrones:
+        return
+    patron = re.compile("|".join(patrones), re.IGNORECASE)
     coincidencias = list(patron.finditer(texto))
     for coincidencia in reversed(coincidencias):
         clave = coincidencia.group(0)
