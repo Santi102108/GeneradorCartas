@@ -41,6 +41,13 @@ class PDFIntegracionTests(unittest.TestCase):
             self.assertIn(campo, fuente, f"Falta el marcador {campo} en la plantilla original")
         with TemporaryDirectory() as temp:
             carpeta = Path(temp)
+            plantilla_copia = carpeta / "referencia.docx"
+            shutil.copy2(PLANTILLA, plantilla_copia)
+            pdf_referencia = carpeta / "referencia.pdf"
+            convertir_docx_a_pdf(plantilla_copia, pdf_referencia)
+            info_referencia = subprocess.check_output(["pdfinfo", str(pdf_referencia)], text=True)
+            patron_pagina = re.compile(r"^(Pages|Page size):\\s*(.+)$", re.MULTILINE)
+            paginas_referencia = dict(patron_pagina.findall(info_referencia))
             for numero, valor in enumerate(VALORES):
                 with self.subTest(valor=valor):
                     docx = carpeta / f"carta_{numero}.docx"
@@ -68,6 +75,8 @@ class PDFIntegracionTests(unittest.TestCase):
                     info = subprocess.check_output(["pdfinfo", str(pdf)], text=True)
                     self.assertIn("Pages:", info)
                     self.assertIn("Page size:", info)
+                    self.assertEqual(dict(patron_pagina.findall(info)), paginas_referencia,
+                                     "El PDF cambió su número de páginas o tamaño de hoja")
 
 if __name__ == "__main__":
     unittest.main()
