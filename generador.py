@@ -66,6 +66,8 @@ def _reemplazar_en_parrafo(parrafo, reemplazos):
                  if clave.upper().startswith("{{VALOR_LETRAS}}")
                  else reemplazos.get(clave.upper(), clave))
         inicio, fin = coincidencia.span()
+        if clave.upper() == "{{VALOR}}" and not re.search(r"\$\s*$", texto[:inicio]):
+            valor = "$" + valor
         posiciones = []
         for i, run in enumerate(runs):
             for j in range(len(run.text)):
@@ -101,7 +103,7 @@ def completar_plantilla(datos, salida_docx, plantilla=PLANTILLA):
     reemplazos = {
         "{{NOMBRE}}": datos["nombre"],
         "{{CEDULA}}": datos["cedula"],
-        "{{VALOR}}": "$" + datos["valor"],
+        "{{VALOR}}": datos["valor"],
         "{{VALOR_LETRAS}}": convertir_numero_a_palabras(datos["valor"]),
         "{{FECHA_MAXIMA}}": datos["fecha_maxima"],
         "{{FECHA_EXPEDICION}}": datos["fecha_expedicion"],
