@@ -1,0 +1,15 @@
+name: Verificación PDF local publicado en Render
+on:
+  push:
+    branches: ["feature/pdf-local-*"]
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar extractor PDF
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+      - name: Probar las cinco descargas desde Render
+        env:
+          CARTAPRO_BASE_URL: https://generadorcartas-pdf-local.onrender.com
+        run: python scripts/smoke_local.py
