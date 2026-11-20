@@ -12,7 +12,7 @@ app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 def _nombre_archivo(datos):
     nombre = re.sub(r"[^A-Za-z0-9_-]+", "_", datos["nombre"]).strip("_")[:55] or "Empleado"
-    cedula = re.sub(r"\\D", "", datos["cedula"])[:25]
+    cedula = re.sub(r"\D", "", datos["cedula"])[:25]
     return f"Carta_Cesantias_{nombre}_{cedula}.pdf"
 
 
