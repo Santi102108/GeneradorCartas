@@ -1,0 +1,12 @@
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+.env
+.env.*
+Documentos Generados
+Carta_Retiro_*.pdf
+Carta_Retiro_*.docx
