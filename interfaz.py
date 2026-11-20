@@ -1,40 +1,60 @@
-import os
-from flask import Flask, render_template, request, send_file, after_this_request
-from generador import generar_carta_cesantias
+"""Aplicación web: una respuesta PDF por solicitud, sin datos compartidos."""
+from io import BytesIO
+import re
+from flask import Flask, jsonify, render_template, request, send_file
+from werkzeug.exceptions import BadRequest
+from generador import generar_pdf, validar_datos
+from utilidades import convertir_numero_a_palabras
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
-@app.route("/")
+
+def _nombre_archivo(datos):
+    nombre = re.sub(r"[^A-Za-z0-9_-]+", "_", datos["nombre"]).strip("_")[:55] or "Empleado"
+    cedula = re.sub(r"\D", "", datos["cedula"])[:25]
+    return f"Carta_Cesantias_{nombre}_{cedula}.pdf"
+
+
+@app.get("/")
 def index():
-    return render_template("index.html", datos={})
+    return render_template("index.html")
 
-@app.route("/generar", methods=["POST"])
-def generar():
-    datos = request.form.to_dict()
-    nombre_usuario = datos.get('nombre', 'Empleado').strip().replace(" ", "_")
-    
+
+@app.post("/api/valor-letras")
+def valor_letras():
     try:
-        # Genera los archivos y fuerza la conversión a PDF
-        ruta_docx, ruta_pdf = generar_carta_cesantias(datos)
+        cuerpo = request.get_json(silent=True) or {}
+        return jsonify({"texto": convertir_numero_a_palabras(cuerpo.get("valor", ""))})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-        @after_this_request
-        def eliminar_temporales(response):
-            try:
-                if ruta_docx and os.path.exists(ruta_docx):
-                    os.remove(ruta_docx)
-                if ruta_pdf and os.path.exists(ruta_pdf):
-                    os.remove(ruta_pdf)
-            except Exception as e:
-                print(f"Error limpiando archivos temporales: {e}")
-            return response
 
-        nombre_archivo_pdf = f"Carta_Retiro_Cesantias_{nombre_usuario}.pdf"
+@app.post("/generar")
+def generar():
+    try:
+        datos = validar_datos(request.form.to_dict())
+        contenido = generar_pdf(datos)
+        vista_previa = request.form.get("preview") == "1"
+        respuesta = send_file(
+            BytesIO(contenido), mimetype="application/pdf",
+            as_attachment=not vista_previa,
+            download_name=_nombre_archivo(datos), conditional=False)
+        respuesta.headers["Cache-Control"] = "no-store, private"
+        respuesta.headers["X-Content-Type-Options"] = "nosniff"
+        return respuesta
+    except (ValueError, BadRequest) as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception:
+        app.logger.exception("Error al generar PDF")
+        return jsonify({"error": "No se pudo generar el PDF. Verifique la configuración de conversión."}), 503
 
-        # Obliga al sistema a retornar únicamente el archivo PDF
-        if ruta_pdf and os.path.exists(ruta_pdf):
-            return send_file(ruta_pdf, as_attachment=True, download_name=nombre_archivo_pdf)
-        else:
-            return "El archivo PDF no se pudo generar correctamente en el servidor.", 500
 
-    except Exception as error_general:
-        return f"Error en la generación del PDF: {str(error_general)}. Asegúrate de que la variable CLOUDCONVERT_API_KEY esté bien configurada en Render.", 500
+@app.get("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+if __name__ == "__main__":
+    import os
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))

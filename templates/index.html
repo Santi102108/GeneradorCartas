@@ -1,95 +1,106 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generador de Cartas</title>
-
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101d33">
+<title>Generador de cartas | Documentos profesionales</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-
 <body>
-
-<div class="contenedor">
-
-    <h1>Generador de Cartas</h1>
-
-    {% if mensaje %}
-        <div class="mensaje">
-            {{ mensaje }}
-        </div>
-    {% endif %}
-    
-    {% if word %}
-    <br>
-
-    <a href="/descargar/word">
-        <button type="button">
-            Descargar Word
-        </button>
-    </a>
-
-    <br><br>
-
-    <a href="/descargar/pdf">
-        <button type="button">
-            Descargar PDF
-        </button>
-    </a>
-    {% endif %}
-
-    <!-- Se añade action="/generar" para solucionar el error Method Not Allowed -->
-    <form action="/generar" method="POST">
-
-        <label>Nombre</label>
-        <input
-            type="text"
-            name="nombre"
-            value="{{ datos.get('nombre', '') }}"
-            required
-        >
-
-        <label>Cédula</label>
-        <input
-            type="text"
-            name="cedula"
-            value="{{ datos.get('cedula', '') }}"
-            required
-        >
-
-        <label>Valor</label>
-        <input
-            type="text"
-            name="valor"
-            value="{{ datos.get('valor', '') }}"
-            required
-        >
-
-        <label>Fecha máxima</label>
-        <input
-            type="text"
-            name="fecha_maxima"
-            placeholder="dd/mm/aa"
-            value="{{ datos.get('fecha_maxima', '') }}"
-            required
-        >
-
-        <label>Fecha expedición</label>
-        <input
-            type="text"
-            name="fecha_expedicion"
-            placeholder="dd/mm/aa"
-            value="{{ datos.get('fecha_expedicion', '') }}"
-            required
-        >
-
-        <button type="submit">
-            Generar Carta
-        </button>
-
-    </form>
-
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-icon" aria-hidden="true">▤</div><div><strong>CartaPro</strong><small>Gestión documental</small></div></div>
+    <div class="nav-active"><span>▦</span> Generar carta</div>
+    <div class="sidebar-foot">DOCUMENTOS CORPORATIVOS<br><span>Salida segura en formato PDF</span></div>
+  </aside>
+  <main class="main">
+    <header class="top"><div><span class="eyebrow">HERRAMIENTAS / GENERADOR</span><h1>Generador de cartas</h1><p>Completa los datos, revisa el contenido y descarga tu documento en PDF.</p></div><div class="pdf-tag">◈ &nbsp; PDF</div></header>
+    <div class="workspace">
+      <section class="panel">
+        <div class="panel-head"><div class="step">01</div><div><h2>Información de la carta</h2><p>Los campos marcados con * son obligatorios.</p></div></div>
+        <form id="letter-form" action="/generar" method="post" novalidate>
+          <div class="field full"><label for="nombre">Nombre completo *</label><input id="nombre" name="nombre" maxlength="150" autocomplete="name" required placeholder="Ej. Juan Carlos Pérez"></div>
+          <div class="field full"><label for="cedula">Número de cédula *</label><input id="cedula" name="cedula" maxlength="25" inputmode="numeric" required placeholder="Ej. 1.234.567.890"></div>
+          <div class="field full"><label for="valor">Valor en pesos colombianos *</label><div class="money-input"><span>$</span><input id="valor" name="valor" inputmode="numeric" required placeholder="2.100.000"></div><small class="hint">Escribe un valor entero, sin centavos.</small></div>
+          <div class="words"><span>VALOR EN LETRAS</span><output id="valor-letras">El valor en letras aparecerá aquí.</output></div>
+          <div class="two-fields"><div class="field"><label for="fecha_maxima">Fecha máxima *</label><input id="fecha_maxima" name="fecha_maxima" type="date" required></div><div class="field"><label for="fecha_expedicion">Fecha de expedición *</label><input id="fecha_expedicion" name="fecha_expedicion" type="date" required></div></div>
+          <div class="buttons"><button type="button" class="secondary" id="preview-btn">Vista previa</button><button type="submit" id="generate-btn" class="primary">Generar y descargar PDF <span aria-hidden="true">↗</span></button></div>
+          <div id="status" role="status" aria-live="polite"></div>
+        </form>
+      </section>
+      <section class="preview-pane"><div class="preview-title"><h2>Vista previa</h2><span>PDF ORIGINAL</span></div><div class="preview-body" id="preview-body"><div class="empty-preview"><div class="sheet-symbol" aria-hidden="true">▤</div><h3>Tu documento aparecerá aquí</h3><p>Selecciona «Vista previa» para comprobar el PDF con la plantilla original.</p></div></div><div class="preview-caption">La vista previa muestra el PDF real generado, no una maqueta.</div></section>
+    </div>
+    <footer>Generador de cartas · Formato PDF · Campos validados</footer>
+  </main>
 </div>
-
-</body>
-</html>
+<script>
+(() => {
+  'use strict';
+  const form = document.getElementById('letter-form');
+  const value = document.getElementById('valor');
+  const words = document.getElementById('valor-letras');
+  const status = document.getElementById('status');
+  const previewBody = document.getElementById('preview-body');
+  const previewButton = document.getElementById('preview-btn');
+  const generateButton = document.getElementById('generate-btn');
+  let previewUrl = null;
+  let lookup = 0;
+  const setStatus = (message, error = false) => {
+    status.textContent = message;
+    status.className = message ? (error ? 'error' : 'success') : '';
+  };
+  const fileName = () => {
+    const name = document.getElementById('nombre').value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 55) || 'Empleado';
+    const id = document.getElementById('cedula').value.replace(/\D/g, '').slice(0,25);
+    return 'Carta_Cesantias_' + name + '_' + id + '.pdf';
+  };
+  async function updateWords() {
+    const seq = ++lookup;
+    if (!value.value.trim()) { words.textContent = 'El valor en letras aparecerá aquí.'; return; }
+    try {
+      const response = await fetch('/api/valor-letras', {method:'POST', headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:value.value})});
+      const body = await response.json();
+      if (seq === lookup) words.textContent = body.texto || body.error || 'Valor inválido';
+    } catch (_) { if (seq === lookup) words.textContent = 'No se pudo comprobar el valor.'; }
+  }
+  value.addEventListener('input', () => { setStatus(''); updateWords(); });
+  let busy = false;
+  async function produce(preview) {
+    if (busy) return;
+    if (!form.reportValidity()) { setStatus('Completa todos los campos obligatorios antes de continuar.', true); return; }
+    busy = true;
+    previewButton.disabled = generateButton.disabled = true;
+    setStatus('Generando el PDF con la plantilla original…');
+    try {
+      const data = new FormData(form);
+      if (preview) data.set('preview', '1');
+      const response = await fetch('/generar', {method:'POST', body:data});
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || 'No se pudo generar el documento.');
+      }
+      const blob = await response.blob();
+      if (blob.type !== 'application/pdf' || blob.size < 100) throw new Error('La respuesta no contiene un PDF válido.');
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(blob);
+      previewBody.replaceChildren();
+      const frame = document.createElement('iframe');
+      frame.title = 'Vista previa de la carta PDF';
+      frame.src = previewUrl;
+      previewBody.appendChild(frame);
+      if (!preview) {
+        const a = document.createElement('a');
+        a.href = previewUrl; a.download = fileName();
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      setStatus(preview ? 'Vista previa PDF generada correctamente.' : 'PDF generado correctamente. La descarga se ha iniciado.');
+    } catch (err) { setStatus(err.message || 'Error desconocido', true); }
+    finally { busy = false; previewButton.disabled = generateButton.disabled = false; }
+  }
+  previewButton.addEventListener('click', () => produce(true));
+  form.addEventListener('submit', (event) => { event.preventDefault(); produce(false); });
+  window.addEventListener('beforeunload', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); });
+})();
+</script>
+</body></html>
