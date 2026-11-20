@@ -9,12 +9,12 @@ def normalizar_valor(valor):
     if isinstance(valor, bool):
         raise ValueError("El valor debe ser numérico.")
     texto = str(valor).strip().upper()
-    texto = re.sub(r"^(?:COP\\s*)?\\$?\\s*", "", texto)
-    texto = re.sub(r"\\s*(?:COP|M/CTE|PESOS)\\s*$", "", texto).strip()
+    texto = re.sub(r"^(?:COP\s*)?\$?\s*", "", texto)
+    texto = re.sub(r"\s*(?:COP|M/CTE|PESOS)\s*$", "", texto).strip()
     texto = texto.replace(" ", "")
-    if re.fullmatch(r"\\d{1,3}(?:\\.\\d{3})+(?:,00)?", texto):
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,00)?", texto):
         texto = texto.split(",")[0].replace(".", "")
-    elif re.fullmatch(r"\\d+(?:,00)?", texto):
+    elif re.fullmatch(r"\d+(?:,00)?", texto):
         texto = texto.split(",")[0]
     else:
         raise ValueError("Valor inválido. Ejemplo: 2.100.000 (sin centavos).")
@@ -30,7 +30,7 @@ def convertir_numero_a_palabras(valor):
     texto = num2words(numero, lang="es").upper()
     # Ante el sustantivo masculino PESOS, uno se apocopa.
     texto = re.sub(r"VEINTIUNO$", "VEINTIÚN", texto)
-    texto = re.sub(r"\\bUNO$", "UN", texto)
+    texto = re.sub(r"\bUNO$", "UN", texto)
     if numero % 1_000_000 == 0:
         return f"{texto} DE PESOS"
     return f"{texto} PESOS"
