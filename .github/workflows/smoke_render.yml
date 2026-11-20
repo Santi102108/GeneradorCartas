@@ -1,0 +1,74 @@
+name: Verificación del generador publicado
+on:
+  push:
+    branches:
+      - repair/**
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar herramientas PDF
+        run: |
+          python -m pip install requests
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils
+      - name: Comprobar aplicación Render y PDF real
+        run: |
+          python - <<'PY'
+          import re, subprocess, tempfile, time
+          from pathlib import Path
+          import requests
+          base = "https://generadorcartas.onrender.com"
+          session = requests.Session()
+          for i in range(36):
+              try:
+                  response = session.get(base + "/health", timeout=12)
+                  if response.ok and response.json().get("status") == "ok":
+                      break
+              except (requests.RequestException, ValueError):
+                  pass
+              time.sleep(5)
+          else:
+              raise AssertionError("El despliegue actualizado no responde en /health")
+          homepage = session.get(base + "/", timeout=20)
+          homepage.raise_for_status()
+          assert "CartaPro" in homepage.text, "La interfaz actualizada no está visible"
+          expected = {
+              "480.000": "CUATROCIENTOS OCHENTA MIL PESOS",
+              "1.076.000": "UN MILLÓN SETENTA Y SEIS MIL PESOS",
+              "2.100.000": "DOS MILLONES CIEN MIL PESOS",
+              "7.000.000": "SIETE MILLONES DE PESOS",
+              "15.500.000": "QUINCE MILLONES QUINIENTOS MIL PESOS",
+          }
+          for amount, words in expected.items():
+              r = session.post(base + "/api/valor-letras", json={"valor": amount}, timeout=25)
+              r.raise_for_status()
+              assert r.json()["texto"] == words, (amount, r.text)
+          r = session.post(base + "/generar", data={
+              "nombre": "CONTROL DOCUMENTAL", "cedula": "987654321",
+              "valor": "2.100.000",
+              "fecha_maxima": "2026-12-05",
+              "fecha_expedicion": "2026-11-20",
+          }, timeout=180)
+          assert r.status_code == 200, ("PDF en Render falló", r.status_code, r.text[:350])
+          assert r.headers.get("content-type", "").startswith("application/pdf")
+          assert "attachment" in r.headers.get("content-disposition", "")
+          assert r.content[:5] == b"%PDF-"
+          with tempfile.TemporaryDirectory() as d:
+              pdf = Path(d) / "carta.pdf"
+              pdf.write_bytes(r.content)
+              text = subprocess.check_output(["pdftotext", "-layout", str(pdf), "-"], text=True)
+              normalized = re.sub(r"\s+", " ", text).upper()
+              assert "DOS MILLONES CIEN MIL PESOS" in normalized, normalized[:800]
+              assert "PESOS PESOS" not in normalized
+              assert "CONTROL DOCUMENTAL" in normalized
+              assert "987654321" in normalized
+              info = subprocess.check_output(["pdfinfo", str(pdf)], text=True)
+              assert "Pages:" in info and "Page size:" in info
+          print("ÉXITO: interfaz, cinco importes y descarga PDF real en Render verificados")
+          PY
