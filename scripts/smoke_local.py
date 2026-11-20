@@ -1,4 +1,5 @@
 """Prueba end-to-end del contenedor con cinco PDFs reales."""
+import os
 import json
 import re
 import subprocess
@@ -8,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-BASE = "http://127.0.0.1:10000"
+BASE = os.environ.get("CARTAPRO_BASE_URL", "http://127.0.0.1:10000")
 CASOS = {
     "480.000": "CUATROCIENTOS OCHENTA MIL PESOS",
     "1.076.000": "UN MILLÓN SETENTA Y SEIS MIL PESOS",
