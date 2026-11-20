@@ -122,46 +122,47 @@ def completar_plantilla(datos, salida_docx, plantilla=PLANTILLA):
     return str(salida_docx)
 
 
-def convertir_docx_a_pdf_cloudconvert(ruta_docx, ruta_pdf):
-    """CloudConvert preserva el flujo basado en DOCX del proyecto original."""
-    clave = os.environ.get("CLOUDCONVERT_API_KEY", "").strip()
-    if not clave:
-        raise RuntimeError("No se configuró CLOUDCONVERT_API_KEY para exportar el PDF.")
-    import cloudconvert
-    cloudconvert.configure(api_key=clave)
-    trabajo = cloudconvert.Job.create(payload={"tasks": {
-        "importar": {"operation": "import/upload"},
-        "convertir": {"operation": "convert", "input": "importar",
-                      "output_format": "pdf", "engine": "office"},
-        "exportar": {"operation": "export/url", "input": "convertir"}}})
-    carga = next(t for t in trabajo["tasks"] if t["operation"] == "import/upload")
-    cloudconvert.Task.upload(file_name=str(ruta_docx), task=carga)
-    terminado = cloudconvert.Job.wait(id=trabajo["id"])
-    tarea = next(t for t in terminado["tasks"] if t["operation"] == "export/url")
-    if tarea.get("status") != "finished" or not tarea.get("result", {}).get("files"):
-        raise RuntimeError("CloudConvert no produjo un PDF válido.")
-    cloudconvert.download(url=tarea["result"]["files"][0]["url"], filename=str(ruta_pdf))
-
-
 def convertir_docx_a_pdf(ruta_docx, ruta_pdf):
-    if os.environ.get("CLOUDCONVERT_API_KEY", "").strip():
-        convertir_docx_a_pdf_cloudconvert(ruta_docx, ruta_pdf)
-    else:
-        # LibreOffice es una alternativa local; no se envían datos a terceros.
-        comando = os.environ.get("LIBREOFFICE_BIN", "libreoffice")
-        try:
-            subprocess.run([comando, f"-env:UserInstallation={Path(ruta_docx).parent.joinpath('lo_profile').as_uri()}",
-                            "--headless", "--convert-to", "pdf", "--outdir",
-                            str(Path(ruta_pdf).parent), str(ruta_docx)],
-                           check=True, capture_output=True, timeout=90)
-        except (OSError, subprocess.SubprocessError) as exc:
-            raise RuntimeError(
-                "No se pudo producir el PDF. Configure CLOUDCONVERT_API_KEY "
-                "o instale LibreOffice en el servidor.") from exc
-    destino = Path(ruta_pdf)
-    if not destino.is_file() or destino.stat().st_size < 100 or destino.read_bytes()[:5] != b"%PDF-":
-        raise RuntimeError("El archivo producido no es un PDF válido.")
-    return str(destino)
+    """Convierte DOCX a PDF localmente, sin cuotas ni servicios externos.
+
+    Cada solicitud dispone de su propio perfil LibreOffice, evitando colisiones.
+    """
+    import shutil
+
+    comando = os.environ.get("LIBREOFFICE_BIN", "libreoffice")
+    if not shutil.which(comando):
+        raise RuntimeError("LibreOffice no está disponible en este servidor.")
+
+    ruta_docx = Path(ruta_docx).resolve()
+    ruta_pdf = Path(ruta_pdf).resolve()
+    ruta_pdf.parent.mkdir(parents=True, exist_ok=True)
+    perfil = ruta_docx.parent / "lo_profile"
+    try:
+        proceso = subprocess.run(
+            [
+                comando,
+                f"-env:UserInstallation={perfil.as_uri()}",
+                "--headless",
+                "--convert-to", "pdf",
+                "--outdir", str(ruta_pdf.parent),
+                str(ruta_docx),
+            ],
+            check=True, capture_output=True, text=True, timeout=120,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("La conversión PDF superó el tiempo permitido.") from exc
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError("LibreOffice no pudo convertir la carta a PDF.") from exc
+
+    salida = ruta_pdf.parent / (ruta_docx.stem + ".pdf")
+    if salida != ruta_pdf and salida.exists():
+        salida.replace(ruta_pdf)
+    if not ruta_pdf.is_file() or ruta_pdf.stat().st_size < 100:
+        raise RuntimeError(f"LibreOffice no produjo un PDF válido: {proceso.stderr[-300:]}")
+    with ruta_pdf.open("rb") as archivo:
+        if archivo.read(5) != b"%PDF-":
+            raise RuntimeError("El archivo generado no es un PDF válido.")
+    return str(ruta_pdf)
 
 
 def generar_pdf(datos, plantilla=PLANTILLA):
