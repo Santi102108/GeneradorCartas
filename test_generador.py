@@ -61,6 +61,12 @@ class PlantillaTests(unittest.TestCase):
         self.assertTrue(dos.italic)
         self.assertEqual(len(doc.tables), 1)
 
+    def test_moneda_no_duplica_signo_si_plantilla_ya_lo_tiene(self):
+        doc = Document()
+        p = doc.add_paragraph("Valor: $ {{VALOR}}")
+        _reemplazar_en_parrafo(p, {"{{VALOR}}": "2.100.000"})
+        self.assertEqual(p.text, "Valor: $ 2.100.000")
+
     def test_plantilla_preserva_tablas_y_dimensiones(self):
         with TemporaryDirectory() as temp:
             origen = Path(temp) / "base.docx"
