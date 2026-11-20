@@ -139,7 +139,7 @@ def convertir_docx_a_pdf(ruta_docx, ruta_pdf):
         # LibreOffice es una alternativa local; no se envían datos a terceros.
         comando = os.environ.get("LIBREOFFICE_BIN", "libreoffice")
         try:
-            subprocess.run([comando, "-env:UserInstallation=file:///tmp/lo_cartas",
+            subprocess.run([comando, f"-env:UserInstallation={Path(ruta_docx).parent.joinpath('lo_profile').as_uri()}",
                             "--headless", "--convert-to", "pdf", "--outdir",
                             str(Path(ruta_pdf).parent), str(ruta_docx)],
                            check=True, capture_output=True, timeout=90)
